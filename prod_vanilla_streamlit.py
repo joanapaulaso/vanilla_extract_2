@@ -122,35 +122,35 @@ st.header(f"Resultados Cumulativos após {anos_projecao} anos")
 col1, col2, col3 = st.columns(3)
 col1.metric(
     "Produção Total Acumulada",
-    f"{resultados_cumulativos['Produção Total (kg)']:.2f} kg",
+    f"{resultados_cumulativos['Produção Total (kg)']:,.2f} kg",
 )
-col2.metric("Número Total de Favas", f"{resultados_cumulativos['Número de Favas']:.0f}")
-col3.metric("Área Necessária", f"{area_necessaria:.2f} hectares")
+col2.metric("Número Total de Favas", f"{resultados_cumulativos['Número de Favas']:,.0f}")
+col3.metric("Área Necessária", f"{area_necessaria:,.2f} hectares")
 
 st.subheader("Projeção Cumulativa de Favas")
 col1, col2 = st.columns(2)
 col1.metric(
     "Peso Total Favas Verdes",
-    f"{resultados_cumulativos['Peso Favas Verdes (kg)']:.2f} kg",
+    f"{resultados_cumulativos['Peso Favas Verdes (kg)']:,.2f} kg",
 )
 col2.metric(
     "Peso Total Favas Curadas",
-    f"{resultados_cumulativos['Peso Favas Curadas (kg)']:.2f} kg",
+    f"{resultados_cumulativos['Peso Favas Curadas (kg)']:,.2f} kg",
 )
 
 st.subheader("Projeção Cumulativa de Valor de Mercado (US$)")
 col1, col2, col3 = st.columns(3)
 col1.metric(
     "Valor Total Favas Verdes",
-    f"${resultados_cumulativos['Valor Favas Verdes (US$)']:.2f}",
+    f"${resultados_cumulativos['Valor Favas Verdes (US$)']:,.2f}",
 )
 col2.metric(
     "Valor Total Favas Curadas",
-    f"${resultados_cumulativos['Valor Favas Curadas (US$)']:.2f}",
+    f"${resultados_cumulativos['Valor Favas Curadas (US$)']:,.2f}",
 )
 col3.metric(
     "Valor Total Extrato 1-fold",
-    f"${resultados_cumulativos['Valor Extrato 1-fold (US$)']:.2f}",
+    f"${resultados_cumulativos['Valor Extrato 1-fold (US$)']:,.2f}",
 )
 
 st.header("Gráficos de Produção Cumulativa")
