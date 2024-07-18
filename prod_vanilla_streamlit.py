@@ -4,7 +4,7 @@ import altair as alt
 import numpy as np
 
 
-def calcular_produtividade_baunilha(num_mudas, ano, sistema, usar_modelo_linear=False):
+def calcular_produtividade_baunilha(num_mudas, ano, usar_modelo_linear=False):
     producao_por_hectare = {
         3: 500,
         4: 1000,
@@ -12,12 +12,7 @@ def calcular_produtividade_baunilha(num_mudas, ano, sistema, usar_modelo_linear=
         6: 2500,
     }
 
-    if sistema == "SAF":
-        area_por_muda = 4
-    else:  # Semi-intensivo
-        area_por_muda = 2.5
-
-    hectares = (num_mudas * area_por_muda) / 10000  # Convertendo para hectares
+    hectares = num_mudas / 4000  # Agora usamos um valor fixo de mudas por hectare
 
     if usar_modelo_linear and ano <= 2:
         coef = (500 - 0) / (3 - 0)
@@ -51,14 +46,13 @@ def calcular_produtividade_baunilha(num_mudas, ano, sistema, usar_modelo_linear=
         numero_favas,
         peso_favas_verdes,
         peso_favas_curadas,
-        hectares,
         valor_favas_verdes,
         valor_favas_curadas,
         valor_extrato,
     )
 
 
-def calcular_cumulativo(num_mudas, anos, sistema, usar_modelo_linear=False):
+def calcular_cumulativo(num_mudas, anos, usar_modelo_linear=False):
     resultados_cumulativos = {
         "Produção Total (kg)": 0,
         "Número de Favas": 0,
@@ -71,9 +65,7 @@ def calcular_cumulativo(num_mudas, anos, sistema, usar_modelo_linear=False):
     resultados_anuais = []
 
     for ano in range(1, anos + 1):
-        res = calcular_produtividade_baunilha(
-            num_mudas, ano, sistema, usar_modelo_linear
-        )
+        res = calcular_produtividade_baunilha(num_mudas, ano, usar_modelo_linear)
         resultados_anuais.append(
             {
                 "Ano": ano,
@@ -81,15 +73,22 @@ def calcular_cumulativo(num_mudas, anos, sistema, usar_modelo_linear=False):
                 "Número de Favas": res[2],
                 "Peso Favas Verdes (kg)": res[3],
                 "Peso Favas Curadas (kg)": res[4],
-                "Valor Favas Verdes (US$)": res[6],
-                "Valor Favas Curadas (US$)": res[7],
-                "Valor Extrato 1-fold (US$)": res[8],
+                "Valor Favas Verdes (US$)": res[5],
+                "Valor Favas Curadas (US$)": res[6],
+                "Valor Extrato 1-fold (US$)": res[7],
             }
         )
         for key in resultados_cumulativos:
             resultados_cumulativos[key] += resultados_anuais[-1][key]
 
     return resultados_cumulativos, resultados_anuais
+
+
+def calcular_area_necessaria(num_mudas, sistema):
+    if sistema == "SAF":
+        return (num_mudas * 4) / 10000  # 4m² por muda no SAF
+    else:  # Semi-intensivo
+        return (num_mudas * 2.5) / 10000  # 2.5m² por muda no semi-intensivo
 
 
 st.set_page_config(
@@ -115,8 +114,9 @@ with col2:
     st.write("- Extrato 1-fold: 2,25x o preço da fava curada")
 
 resultados_cumulativos, resultados_anuais = calcular_cumulativo(
-    num_mudas, anos_projecao, sistema, usar_modelo_linear
+    num_mudas, anos_projecao, usar_modelo_linear
 )
+area_necessaria = calcular_area_necessaria(num_mudas, sistema)
 
 st.header(f"Resultados Cumulativos após {anos_projecao} anos")
 col1, col2, col3 = st.columns(3)
@@ -125,10 +125,7 @@ col1.metric(
     f"{resultados_cumulativos['Produção Total (kg)']:.2f} kg",
 )
 col2.metric("Número Total de Favas", f"{resultados_cumulativos['Número de Favas']:.0f}")
-col3.metric(
-    "Área Necessária",
-    f"{(num_mudas * (4 if sistema == 'SAF' else 2.5) / 10000):.2f} hectares",
-)
+col3.metric("Área Necessária", f"{area_necessaria:.2f} hectares")
 
 st.subheader("Projeção Cumulativa de Favas")
 col1, col2 = st.columns(2)
