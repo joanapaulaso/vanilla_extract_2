@@ -234,19 +234,19 @@ st.write(
 - Em um sistema de produção semi intensivo, com 4000 mudas por hectare, os seguintes rendimentos podem ser esperados:
   - Ano 3: 500 kilos
   - Ano 4: 1 tonelada
-  - Ano 5: 1,6 tonelada
-  - Ano 6: 2,5 toneladas
-  - Demais anos: Entre 2,5 e 3 toneladas
-- A produtividade média sugerida é de 0,5 a 1 kilo por pé de baunilha.
+  - Ano 5: 1.6 tonelada
+  - Ano 6: 2.5 toneladas
+  - Demais anos: Entre 2.5 e 3 toneladas
+- A produtividade média sugerida é de 0.5 a 1 kilo por pé de baunilha.
 - Para os anos 1 e 2, um modelo linear é usado para estimar a produção, assumindo um crescimento gradual até o ano 3.
 - Uma muda na produtividade mais alta (aos 6 anos) produz aproximadamente 30 favas.
 - Cada fava verde tem cerca de 20g.
 - Cada fava curada tem cerca de 4g.
 - No sistema agroflorestal (SAF), cada muda ocupa 4m².
-- No sistema semi-intensivo, cada muda ocupa 2,5m².
+- No sistema semi-intensivo, cada muda ocupa 2.5m².
 - Preços de referência (sujeitos a variações de mercado):
-  - Fava verde: US$ 47/kg
-  - Fava curada: US$ 154/kg
-  - Extrato 1-fold: 2,25x o preço da fava curada
+  - Fava verde: US$ 15/kg
+  - Fava curada: US$ 139.75/kg
+  - Extrato 1-fold: 2.25x o preço da fava curada
 """
 )
