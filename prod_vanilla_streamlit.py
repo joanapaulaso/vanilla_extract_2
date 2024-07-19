@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 import numpy as np
+from io import BytesIO
 
 
 def calcular_produtividade_baunilha(num_mudas, ano, usar_modelo_linear=False):
@@ -35,9 +36,13 @@ def calcular_produtividade_baunilha(num_mudas, ano, usar_modelo_linear=False):
     peso_favas_verdes = numero_favas * 20 / 1000  # em kg
     peso_favas_curadas = numero_favas * 4 / 1000  # em kg
 
+    # Cálculo do preço de cada fava
+    unidade_fava_verde = (20 * 15) / 1000  # US$/kg
+    unidade_fava_curada = (4 * 139.75) / 1000  # US$/kg
+
     # Cálculo do valor de mercado
-    valor_favas_verdes = peso_favas_verdes * 47  # US$
-    valor_favas_curadas = peso_favas_curadas * 154  # US$
+    valor_favas_verdes = unidade_fava_verde * numero_favas # US$
+    valor_favas_curadas = unidade_fava_curada * numero_favas  # US$
     valor_extrato = valor_favas_curadas * 2.25  # US$
 
     return (
@@ -91,6 +96,22 @@ def calcular_area_necessaria(num_mudas, sistema):
         return (num_mudas * 2.5) / 10000  # 2.5m² por muda no semi-intensivo
 
 
+def gerar_excel(resultados_anuais, resultados_cumulativos):
+    output = BytesIO()
+    writer = pd.ExcelWriter(output, engine="openpyxl")
+
+    df_anuais = pd.DataFrame(resultados_anuais)
+    df_cumulativos = pd.DataFrame([resultados_cumulativos])
+
+    df_anuais.to_excel(writer, sheet_name="Anuais", index=False)
+    df_cumulativos.to_excel(writer, sheet_name="Cumulativos", index=False)
+
+    writer.close()
+    output.seek(0)
+
+    return output
+
+
 st.set_page_config(
     page_title="Calculadora de Produtividade de Baunilha", page_icon="🌿", layout="wide"
 )
@@ -109,8 +130,10 @@ with col1:
 with col2:
     st.subheader("Informações de Mercado")
     st.write("Preços de referência:")
-    st.write("- Fava verde: US$ 47/kg")
-    st.write("- Fava curada: US$ 154/kg")
+    st.write("- Fava verde: US$ 15/kg")
+    st.write("- Fava verde (unidade): US$ 0.30")
+    st.write("- Fava curada: US$ 139.75/kg")
+    st.write("- Fava curada (unidade): US$ 0.56")
     st.write("- Extrato 1-fold: 2,25x o preço da fava curada")
 
 resultados_cumulativos, resultados_anuais = calcular_cumulativo(
@@ -124,7 +147,9 @@ col1.metric(
     "Produção Total Acumulada",
     f"{resultados_cumulativos['Produção Total (kg)']:,.2f} kg",
 )
-col2.metric("Número Total de Favas", f"{resultados_cumulativos['Número de Favas']:,.0f}")
+col2.metric(
+    "Número Total de Favas", f"{resultados_cumulativos['Número de Favas']:,.0f}"
+)
 col3.metric("Área Necessária", f"{area_necessaria:,.2f} hectares")
 
 st.subheader("Projeção Cumulativa de Favas")
@@ -142,15 +167,15 @@ st.subheader("Projeção Cumulativa de Valor de Mercado (US$)")
 col1, col2, col3 = st.columns(3)
 col1.metric(
     "Valor Total Favas Verdes",
-    f"${resultados_cumulativos['Valor Favas Verdes (US$)']:,.2f}",
+    f"$ {resultados_cumulativos['Valor Favas Verdes (US$)']:,.2f}",
 )
 col2.metric(
     "Valor Total Favas Curadas",
-    f"${resultados_cumulativos['Valor Favas Curadas (US$)']:,.2f}",
+    f"$ {resultados_cumulativos['Valor Favas Curadas (US$)']:,.2f}",
 )
 col3.metric(
     "Valor Total Extrato 1-fold",
-    f"${resultados_cumulativos['Valor Extrato 1-fold (US$)']:,.2f}",
+    f"$ {resultados_cumulativos['Valor Extrato 1-fold (US$)']:,.2f}",
 )
 
 st.header("Gráficos de Produção Cumulativa")
@@ -185,6 +210,15 @@ st.altair_chart(chart_valor, use_container_width=True)
 
 st.header("Tabela de Resultados Anuais")
 st.dataframe(pd.DataFrame(resultados_anuais).set_index("Ano"))
+
+if st.button("Gerar Tabela Excel"):
+    excel_data = gerar_excel(resultados_anuais, resultados_cumulativos)
+    st.download_button(
+        label="Baixar Tabela Excel",
+        data=excel_data.getvalue(),
+        file_name="resultados_baunilha.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 st.header("Sobre a Cultura da Baunilheira")
 st.write(
