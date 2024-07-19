@@ -66,11 +66,13 @@ def calcular_cumulativo(num_mudas, anos, usar_modelo_linear=False):
         "Valor Favas Verdes (US$)": 0,
         "Valor Favas Curadas (US$)": 0,
         "Valor Extrato 1-fold (US$)": 0,
+        "Faturamento Líquido (US$)": 0,
     }
     resultados_anuais = []
 
     for ano in range(1, anos + 1):
         res = calcular_produtividade_baunilha(num_mudas, ano, usar_modelo_linear)
+        faturamento_liquido = res[7] * 0.22
         resultados_anuais.append(
             {
                 "Ano": ano,
@@ -81,6 +83,7 @@ def calcular_cumulativo(num_mudas, anos, usar_modelo_linear=False):
                 "Valor Favas Verdes (US$)": res[5],
                 "Valor Favas Curadas (US$)": res[6],
                 "Valor Extrato 1-fold (US$)": res[7],
+                "Faturamento Líquido (US$)": faturamento_liquido,
             }
         )
         for key in resultados_cumulativos:
@@ -150,7 +153,7 @@ col1.metric(
 col2.metric(
     "Número Total de Favas", f"{resultados_cumulativos['Número de Favas']:,.0f}"
 )
-col3.metric("Área Necessária", f"{area_necessaria:,.2f} hectares")
+col3.metric("Área Necessária", f"{area_necessaria:,.0f} hectares")
 
 st.subheader("Projeção Cumulativa de Favas")
 col1, col2 = st.columns(2)
@@ -164,7 +167,7 @@ col2.metric(
 )
 
 st.subheader("Projeção Cumulativa de Valor de Mercado (US$)")
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 col1.metric(
     "Valor Total Favas Verdes",
     f"$ {resultados_cumulativos['Valor Favas Verdes (US$)']:,.2f}",
@@ -176,6 +179,10 @@ col2.metric(
 col3.metric(
     "Valor Total Extrato 1-fold",
     f"$ {resultados_cumulativos['Valor Extrato 1-fold (US$)']:,.2f}",
+)
+col4.metric(
+    "Faturamento Líquido (22% Profit)",
+    f"$ {resultados_cumulativos['Faturamento Líquido (US$)']:,.2f}",
 )
 
 st.header("Gráficos de Produção Cumulativa")
