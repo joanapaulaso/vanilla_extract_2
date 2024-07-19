@@ -41,7 +41,7 @@ def calcular_produtividade_baunilha(num_mudas, ano, usar_modelo_linear=False):
     unidade_fava_curada = (4 * 139.75) / 1000  # US$/kg
 
     # Cálculo do valor de mercado
-    valor_favas_verdes = unidade_fava_verde * numero_favas # US$
+    valor_favas_verdes = unidade_fava_verde * numero_favas  # US$
     valor_favas_curadas = unidade_fava_curada * numero_favas  # US$
     valor_extrato = valor_favas_curadas * 2.25  # US$
 
@@ -115,6 +115,118 @@ def gerar_excel(resultados_anuais, resultados_cumulativos):
     return output
 
 
+def calcular_plano_acao(
+    num_mudas_inicial, faturamento_objetivo, anos, taxa_crescimento_maxima=1.5
+):
+    def calcular_faturamento_total(mudas_inicial, taxa_crescimento, anos_calc):
+        fat_total = 0
+        mudas = mudas_inicial
+        for ano in range(1, anos_calc + 1):
+            fat_anual = 0
+            for ano_impl in range(1, ano + 1):
+                mudas_impl = mudas_inicial * (taxa_crescimento ** (ano_impl - 1))
+                _, _, _, _, _, _, _, valor_extrato = calcular_produtividade_baunilha(
+                    mudas_impl, ano - ano_impl + 1
+                )
+                fat_anual += valor_extrato * 0.22
+            fat_total += fat_anual
+            mudas *= taxa_crescimento
+        return fat_total
+
+    # Verificar se é possível atingir o objetivo com o crescimento máximo
+    faturamento_maximo = calcular_faturamento_total(
+        num_mudas_inicial, taxa_crescimento_maxima, anos
+    )
+    if faturamento_maximo < faturamento_objetivo:
+        # Calcular o número mínimo de mudas iniciais necessárias
+        mudas_min = num_mudas_inicial
+        while (
+            calcular_faturamento_total(mudas_min, taxa_crescimento_maxima, anos)
+            < faturamento_objetivo
+        ):
+            mudas_min *= 1.1  # Aumentar em 10% e tentar novamente
+
+        # Calcular o número de anos necessários com as mudas iniciais fornecidas
+        anos_necessarios = anos
+        while (
+            anos_necessarios <= 15
+            and calcular_faturamento_total(
+                num_mudas_inicial, taxa_crescimento_maxima, anos_necessarios
+            )
+            < faturamento_objetivo
+        ):
+            anos_necessarios += 1
+
+        return (
+            None,
+            None,
+            None,
+            {
+                "possivel": False,
+                "faturamento_maximo": faturamento_maximo,
+                "mudas_minimas": mudas_min,
+                "anos_necessarios": (
+                    anos_necessarios if anos_necessarios <= 15 else None
+                ),
+            },
+        )
+
+    # Encontrar a taxa de crescimento ideal usando busca binária
+    taxa_min, taxa_max = 1.0, taxa_crescimento_maxima
+    while taxa_max - taxa_min > 0.0001:
+        taxa_meio = (taxa_min + taxa_max) / 2
+        if (
+            calcular_faturamento_total(num_mudas_inicial, taxa_meio, anos)
+            < faturamento_objetivo
+        ):
+            taxa_min = taxa_meio
+        else:
+            taxa_max = taxa_meio
+
+    taxa_crescimento = (taxa_min + taxa_max) / 2
+
+    # Calcular o plano com a taxa de crescimento encontrada
+    resultados_plano = []
+    resultados_detalhados = []
+    num_mudas = num_mudas_inicial
+    faturamento_acumulado = 0
+
+    for ano in range(1, anos + 1):
+        faturamento_liquido_anual = 0
+        for ano_impl in range(1, ano + 1):
+            mudas_impl = num_mudas_inicial * (taxa_crescimento ** (ano_impl - 1))
+            _, _, _, _, _, _, _, valor_extrato = calcular_produtividade_baunilha(
+                mudas_impl, ano - ano_impl + 1
+            )
+            faturamento_liquido_anual += valor_extrato * 0.22
+            resultados_detalhados.append(
+                {
+                    "Ano de Implementação": ano_impl,
+                    "Ano": ano,
+                    "Número de Mudas": mudas_impl,
+                    "Faturamento Líquido (US$)": valor_extrato * 0.22,
+                }
+            )
+
+        faturamento_acumulado += faturamento_liquido_anual
+        resultados_plano.append(
+            {
+                "Ano": ano,
+                "Número de Mudas": num_mudas,
+                "Faturamento Líquido (US$)": faturamento_liquido_anual,
+                "Faturamento Acumulado (US$)": faturamento_acumulado,
+            }
+        )
+        num_mudas = num_mudas * taxa_crescimento
+
+    return (
+        pd.DataFrame(resultados_plano),
+        pd.DataFrame(resultados_detalhados),
+        taxa_crescimento,
+        {"possivel": True},
+    )
+
+
 st.set_page_config(
     page_title="Calculadora de Produtividade de Baunilha", page_icon="🌿", layout="wide"
 )
@@ -129,6 +241,9 @@ with col1:
     anos_projecao = st.slider("Anos de Projeção", min_value=1, max_value=15, value=6)
     sistema = st.radio("Sistema de Cultivo", ["SAF", "Semi-intensivo"])
     usar_modelo_linear = st.checkbox("Usar modelo linear para anos 1 e 2", value=True)
+    faturamento_objetivo = st.number_input(
+        "Faturamento Líquido Objetivo (US$)", min_value=1.0, value=10000.0, step=1000.0
+    )
 
 with col2:
     st.subheader("Informações de Mercado")
@@ -226,6 +341,137 @@ if st.button("Gerar Tabela Excel"):
         file_name="resultados_baunilha.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+if st.button("Gerar Plano de Ação"):
+    plano_acao, resultados_detalhados, taxa_crescimento, info = calcular_plano_acao(
+        num_mudas, faturamento_objetivo, anos_projecao
+    )
+
+    if info["possivel"]:
+        st.success(
+            f"Plano de ação gerado para atingir o faturamento objetivo em {anos_projecao} anos."
+        )
+        st.info(
+            f"Taxa de crescimento anual necessária: {(taxa_crescimento - 1) * 100:.2f}%"
+        )
+
+        st.write(plano_acao)
+        st.write(resultados_detalhados)
+
+        # Gráfico de crescimento do número de mudas
+        chart_mudas = (
+            alt.Chart(plano_acao)
+            .mark_line()
+            .encode(x="Ano", y="Número de Mudas", tooltip=["Ano", "Número de Mudas"])
+            .properties(title="Crescimento do Número de Mudas", width=600, height=400)
+        )
+        st.altair_chart(chart_mudas, use_container_width=True)
+
+        # Gráfico de faturamento acumulado
+        chart_faturamento = (
+            alt.Chart(plano_acao)
+            .mark_line()
+            .encode(
+                x="Ano",
+                y="Faturamento Acumulado (US$)",
+                tooltip=["Ano", "Faturamento Acumulado (US$)"],
+            )
+            .properties(title="Faturamento Acumulado", width=600, height=400)
+        )
+        st.altair_chart(chart_faturamento, use_container_width=True)
+
+        # Botões de download
+        if st.button("Gerar Tabela Excel 2"):
+            excel_data = gerar_excel(
+                resultados_detalhados, plano_acao.to_dict("records")
+            )
+            st.download_button(
+                label="Baixar Tabela Excel",
+                data=excel_data.getvalue(),
+                file_name="plano_acao_baunilha.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+
+        # Botão para baixar o plano de ação como CSV
+        if plano_acao is not None and not plano_acao.empty:
+            st.download_button(
+                label="Baixar Plano de Ação (CSV)",
+                data=plano_acao.to_csv(index=False).encode("utf-8"),
+                file_name="plano_acao.csv",
+                mime="text/csv",
+            )
+
+        # Botão para baixar os resultados detalhados como CSV
+        if resultados_detalhados is not None and not resultados_detalhados.empty:
+            st.download_button(
+                label="Baixar Resultados Detalhados (CSV)",
+                data=resultados_detalhados.to_csv(index=False).encode("utf-8"),
+                file_name="resultados_detalhados.csv",
+                mime="text/csv",
+            )
+
+    else:
+        st.warning(
+            "Não é possível atingir o faturamento objetivo com os parâmetros fornecidos."
+        )
+        st.info(f"Faturamento máximo possível: ${info['faturamento_maximo']:,.2f}")
+
+        if info["anos_necessarios"]:
+            st.info(
+                f"Anos necessários para atingir o objetivo com o número atual de mudas: {info['anos_necessarios']}"
+            )
+        else:
+            st.info(
+                "Não é possível atingir o objetivo mesmo em 15 anos com o número atual de mudas."
+            )
+
+        st.info(
+            f"Número mínimo de mudas iniciais necessárias: {info['mudas_minimas']:,.0f}"
+        )
+
+        st.write("Sugestões de ajuste:")
+        st.write(
+            f"1. Aumente o número inicial de mudas para pelo menos {info['mudas_minimas']:,.0f}."
+        )
+        if info["anos_necessarios"] and info["anos_necessarios"] <= 15:
+            st.write(
+                f"2. Aumente o número de anos de projeção para {info['anos_necessarios']}."
+            )
+        else:
+            st.write(
+                "2. Não é possível atingir o objetivo apenas aumentando o número de anos."
+            )
+        st.write("3. Considere reduzir o faturamento objetivo.")
+
+    # st.altair_chart(chart_faturamento, use_container_width=True)
+    st.download_button(
+        label="Baixar Plano de Ação",
+        data=plano_acao.to_csv(index=False).encode("utf-8"),
+        file_name="plano_acao.csv",
+        mime="text/csv",
+    )
+    st.download_button(
+        label="Baixar Resultados Detalhados",
+        data=resultados_detalhados.to_csv(index=False).encode("utf-8"),
+        file_name="resultados_detalhados.csv",
+        mime="text/csv",
+    )
+
+    st.header("Gráfico de Detalhamento do Plano de Ação")
+    chart_detalhado = (
+        alt.Chart(resultados_detalhados)
+        .mark_line()
+        .encode(
+            x="Ano",
+            y="Faturamento Líquido (US$)",
+            color="Ano de Implementação:N",
+            tooltip=["Ano de Implementação", "Ano", "Faturamento Líquido (US$)"],
+        )
+        .properties(
+            title="Faturamento Líquido por Ano de Implementação", width=600, height=400
+        )
+    )
+    st.altair_chart(chart_detalhado, use_container_width=True)
 
 st.header("Sobre a Cultura da Baunilheira")
 st.write(
