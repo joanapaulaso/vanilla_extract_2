@@ -352,11 +352,11 @@ st.dataframe(
             "Número de Favas": "{:,.0f}",
             "Peso Favas Verdes (kg)": "{:,.2f}",
             "Peso Favas Curadas (kg)": "{:,.2f}",
-            "Valor Favas Verdes (US$)": "${:,.2f}",
-            "Valor Favas Curadas (US$)": "${:,.2f}",
-            "Valor Extrato 1-fold (US$)": "${:,.2f}",
-            "Faturamento Bruto (US$)": "${:,.2f}",
-            "Faturamento Líquido (US$)": "${:,.2f}",
+            "Valor Favas Verdes (US$)": "{:,.2f}",
+            "Valor Favas Curadas (US$)": "{:,.2f}",
+            "Valor Extrato 1-fold (US$)": "{:,.2f}",
+            "Faturamento Bruto (US$)": "{:,.2f}",
+            "Faturamento Líquido (US$)": "{:,.2f}",
         }
     )
 )
