@@ -4,6 +4,7 @@ import altair as alt
 import numpy as np
 from io import BytesIO
 
+CUSTO_POR_MUDA = 0.85  # US$
 
 def calcular_produtividade_baunilha(num_mudas, ano, usar_modelo_linear=False):
     producao_por_hectare = {
@@ -66,13 +67,18 @@ def calcular_cumulativo(num_mudas, anos, usar_modelo_linear=False):
         "Valor Favas Verdes (US$)": 0,
         "Valor Favas Curadas (US$)": 0,
         "Valor Extrato 1-fold (US$)": 0,
-        "Faturamento Líquido (US$)": 0,
+        "Faturamento Bruto (US$)": 0,
+        "Custo Inicial Mudas (US$)": num_mudas * CUSTO_POR_MUDA,
     }
     resultados_anuais = []
 
     for ano in range(1, anos + 1):
         res = calcular_produtividade_baunilha(num_mudas, ano, usar_modelo_linear)
-        faturamento_liquido = res[7] * 0.22
+        faturamento_bruto = res[7]
+        lucro_bruto = faturamento_bruto * 0.2130  # 21.30% do faturamento bruto
+        custo_inicial_mudas = num_mudas * CUSTO_POR_MUDA if ano == 1 else 0
+        lucro_liquido = lucro_bruto - custo_inicial_mudas
+
         resultados_anuais.append(
             {
                 "Ano": ano,
@@ -83,11 +89,21 @@ def calcular_cumulativo(num_mudas, anos, usar_modelo_linear=False):
                 "Valor Favas Verdes (US$)": res[5],
                 "Valor Favas Curadas (US$)": res[6],
                 "Valor Extrato 1-fold (US$)": res[7],
-                "Faturamento Líquido (US$)": faturamento_liquido,
+                "Faturamento Bruto (US$)": faturamento_bruto,
+                "Faturamento Líquido (US$)": lucro_liquido,
             }
         )
         for key in resultados_cumulativos:
-            resultados_cumulativos[key] += resultados_anuais[-1][key]
+            if key != "Custo Inicial Mudas (US$)":
+                resultados_cumulativos[key] += resultados_anuais[-1][key]
+
+    # Calcular o faturamento líquido cumulativo
+    faturamento_bruto_total = resultados_cumulativos["Faturamento Bruto (US$)"]
+    custo_inicial_mudas = resultados_cumulativos["Custo Inicial Mudas (US$)"]
+    lucro_bruto = faturamento_bruto_total * 0.2130  # 21.30% do faturamento bruto
+    lucro_liquido = lucro_bruto - custo_inicial_mudas
+
+    resultados_cumulativos["Faturamento Líquido (US$)"] = lucro_liquido
 
     return resultados_cumulativos, resultados_anuais
 
@@ -253,6 +269,7 @@ with col2:
     st.write("- Fava curada: US$ 139.75/kg")
     st.write("- Fava curada (unidade): US$ 0.56")
     st.write("- Extrato 1-fold: 2,25x o preço da fava curada")
+    st.write("- Margem de lucro: 21,30% do faturamento bruto")
 
 resultados_cumulativos, resultados_anuais = calcular_cumulativo(
     num_mudas, anos_projecao, usar_modelo_linear
@@ -281,22 +298,18 @@ col2.metric(
     f"{resultados_cumulativos['Peso Favas Curadas (kg)']:,.2f} kg",
 )
 
-st.subheader("Projeção Cumulativa de Valor de Mercado (US$)")
-col1, col2, col3, col4 = st.columns(4)
+st.subheader("Projeção Cumulativa de Valor de Mercado e Lucro (US$)")
+col1, col2, col3 = st.columns(3)
 col1.metric(
-    "Valor Total Favas Verdes",
-    f"$ {resultados_cumulativos['Valor Favas Verdes (US$)']:,.2f}",
-)
-col2.metric(
-    "Valor Total Favas Curadas",
-    f"$ {resultados_cumulativos['Valor Favas Curadas (US$)']:,.2f}",
-)
-col3.metric(
     "Valor Total Extrato 1-fold",
     f"$ {resultados_cumulativos['Valor Extrato 1-fold (US$)']:,.2f}",
 )
-col4.metric(
-    "Faturamento Líquido (22% Profit)",
+col2.metric(
+    "Custo Inicial Mudas",
+    f"$ {resultados_cumulativos['Custo Inicial Mudas (US$)']:,.2f}",
+)
+col3.metric(
+    "Faturamento Líquido",
     f"$ {resultados_cumulativos['Faturamento Líquido (US$)']:,.2f}",
 )
 
@@ -331,7 +344,22 @@ chart_valor = (
 st.altair_chart(chart_valor, use_container_width=True)
 
 st.header("Tabela de Resultados Anuais")
-st.dataframe(pd.DataFrame(resultados_anuais).set_index("Ano"))
+df_resultados_anuais = pd.DataFrame(resultados_anuais).set_index("Ano")
+st.dataframe(
+    df_resultados_anuais.style.format(
+        {
+            "Produção Total (kg)": "{:,.2f}",
+            "Número de Favas": "{:,.0f}",
+            "Peso Favas Verdes (kg)": "{:,.2f}",
+            "Peso Favas Curadas (kg)": "{:,.2f}",
+            "Valor Favas Verdes (US$)": "${:,.2f}",
+            "Valor Favas Curadas (US$)": "${:,.2f}",
+            "Valor Extrato 1-fold (US$)": "${:,.2f}",
+            "Faturamento Bruto (US$)": "${:,.2f}",
+            "Faturamento Líquido (US$)": "${:,.2f}",
+        }
+    )
+)
 
 if st.button("Gerar Tabela Excel"):
     excel_data = gerar_excel(resultados_anuais, resultados_cumulativos)
@@ -352,7 +380,7 @@ if st.button("Gerar Plano de Ação"):
             f"Plano de ação gerado para atingir o faturamento objetivo em {anos_projecao} anos."
         )
         st.info(
-            f"Taxa de crescimento anual necessária: {(taxa_crescimento - 1) * 100:.2f}%"
+            f"Taxa de crescimento anual necessária: {(taxa_crescimento - 1) * 100:,.2f}%"
         )
 
         st.write(plano_acao)
@@ -393,28 +421,44 @@ if st.button("Gerar Plano de Ação"):
             )
 
         # Botão para baixar o plano de ação como CSV
-        if plano_acao is not None and not plano_acao.empty:
-            st.download_button(
-                label="Baixar Plano de Ação (CSV)",
-                data=plano_acao.to_csv(index=False).encode("utf-8"),
-                file_name="plano_acao.csv",
-                mime="text/csv",
-            )
+        st.download_button(
+            label="Baixar Plano de Ação (CSV)",
+            data=plano_acao.to_csv(index=False).encode("utf-8"),
+            file_name="plano_acao.csv",
+            mime="text/csv",
+        )
 
         # Botão para baixar os resultados detalhados como CSV
-        if resultados_detalhados is not None and not resultados_detalhados.empty:
-            st.download_button(
-                label="Baixar Resultados Detalhados (CSV)",
-                data=resultados_detalhados.to_csv(index=False).encode("utf-8"),
-                file_name="resultados_detalhados.csv",
-                mime="text/csv",
+        st.download_button(
+            label="Baixar Resultados Detalhados (CSV)",
+            data=resultados_detalhados.to_csv(index=False).encode("utf-8"),
+            file_name="resultados_detalhados.csv",
+            mime="text/csv",
+        )
+
+        st.header("Gráfico de Detalhamento do Plano de Ação")
+        chart_detalhado = (
+            alt.Chart(resultados_detalhados)
+            .mark_line()
+            .encode(
+                x="Ano",
+                y="Faturamento Líquido (US$)",
+                color="Ano de Implementação:N",
+                tooltip=["Ano de Implementação", "Ano", "Faturamento Líquido (US$)"],
             )
+            .properties(
+                title="Faturamento Líquido por Ano de Implementação",
+                width=600,
+                height=400,
+            )
+        )
+        st.altair_chart(chart_detalhado, use_container_width=True)
 
     else:
         st.warning(
             "Não é possível atingir o faturamento objetivo com os parâmetros fornecidos."
         )
-        st.info(f"Faturamento máximo possível: ${info['faturamento_maximo']:,.2f}")
+        st.info(f"Faturamento máximo possível: $ {info['faturamento_maximo']:,.2f}")
 
         if info["anos_necessarios"]:
             st.info(
@@ -443,35 +487,47 @@ if st.button("Gerar Plano de Ação"):
             )
         st.write("3. Considere reduzir o faturamento objetivo.")
 
-    # st.altair_chart(chart_faturamento, use_container_width=True)
-    st.download_button(
-        label="Baixar Plano de Ação",
-        data=plano_acao.to_csv(index=False).encode("utf-8"),
-        file_name="plano_acao.csv",
-        mime="text/csv",
-    )
-    st.download_button(
-        label="Baixar Resultados Detalhados",
-        data=resultados_detalhados.to_csv(index=False).encode("utf-8"),
-        file_name="resultados_detalhados.csv",
-        mime="text/csv",
-    )
+    # Adicione verificações antes de tentar acessar os atributos
+    if plano_acao is not None and resultados_detalhados is not None:
+        try:
+            st.download_button(
+                label="Baixar Plano de Ação",
+                data=plano_acao.to_csv(index=False).encode("utf-8"),
+                file_name="plano_acao.csv",
+                mime="text/csv",
+            )
+            st.download_button(
+                label="Baixar Resultados Detalhados",
+                data=resultados_detalhados.to_csv(index=False).encode("utf-8"),
+                file_name="resultados_detalhados.csv",
+                mime="text/csv",
+            )
 
-    st.header("Gráfico de Detalhamento do Plano de Ação")
-    chart_detalhado = (
-        alt.Chart(resultados_detalhados)
-        .mark_line()
-        .encode(
-            x="Ano",
-            y="Faturamento Líquido (US$)",
-            color="Ano de Implementação:N",
-            tooltip=["Ano de Implementação", "Ano", "Faturamento Líquido (US$)"],
-        )
-        .properties(
-            title="Faturamento Líquido por Ano de Implementação", width=600, height=400
-        )
-    )
-    st.altair_chart(chart_detalhado, use_container_width=True)
+            st.header("Gráfico de Detalhamento do Plano de Ação")
+            chart_detalhado = (
+                alt.Chart(resultados_detalhados)
+                .mark_line()
+                .encode(
+                    x="Ano",
+                    y="Faturamento Líquido (US$)",
+                    color="Ano de Implementação:N",
+                    tooltip=[
+                        "Ano de Implementação",
+                        "Ano",
+                        "Faturamento Líquido (US$)",
+                    ],
+                )
+                .properties(
+                    title="Faturamento Líquido por Ano de Implementação",
+                    width=600,
+                    height=400,
+                )
+            )
+            st.altair_chart(chart_detalhado, use_container_width=True)
+        except Exception as e:
+            st.error("Ocorreu um erro ao gerar os downloads ou o gráfico.")
+            # Se quiser ver o erro no console para depuração:
+            # print(f"Erro: {e}")
 
 st.header("Sobre a Cultura da Baunilheira")
 st.write(
