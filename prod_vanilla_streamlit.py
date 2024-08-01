@@ -51,17 +51,17 @@ def calcular_produtividade_baunilha(num_mudas, ano, usar_modelo_linear=False):
     volume_extrato = peso_favas_curadas / 0.25  # kg de extrato (25% de favas)
     valor_extrato = (volume_extrato / 1000) * PRECO_EXTRATO_POR_TONELADA  # US$
 
-    return (
-        producao_kg,
-        produtividade_por_pe,
-        numero_favas,
-        peso_favas_verdes,
-        peso_favas_curadas,
-        valor_favas_verdes,
-        valor_favas_curadas,
-        valor_extrato,
-        volume_extrato,
-    )
+    return {
+        "producao_kg": producao_kg,
+        "produtividade_por_pe": produtividade_por_pe,
+        "numero_favas": numero_favas,
+        "peso_favas_verdes": peso_favas_verdes,
+        "peso_favas_curadas": peso_favas_curadas,
+        "valor_favas_verdes": valor_favas_verdes,
+        "valor_favas_curadas": valor_favas_curadas,
+        "valor_extrato": valor_extrato,
+        "volume_extrato": volume_extrato
+    }
 
 
 def calcular_cumulativo(num_mudas, anos, usar_modelo_linear=False):
@@ -81,7 +81,7 @@ def calcular_cumulativo(num_mudas, anos, usar_modelo_linear=False):
 
     for ano in range(1, anos + 1):
         res = calcular_produtividade_baunilha(num_mudas, ano, usar_modelo_linear)
-        faturamento_bruto = res[7]  # Valor do extrato
+        faturamento_bruto = res["valor_extrato"]
         lucro_bruto = faturamento_bruto * 0.2130  # 21.30% do faturamento bruto
         custo_inicial_mudas = num_mudas * CUSTO_POR_MUDA if ano == 1 else 0
         lucro_liquido = lucro_bruto - custo_inicial_mudas
@@ -89,18 +89,19 @@ def calcular_cumulativo(num_mudas, anos, usar_modelo_linear=False):
         resultados_anuais.append(
             {
                 "Ano": ano,
-                "Produção Total (kg)": res[0],
-                "Número de Favas": res[2],
-                "Peso Favas Verdes (kg)": res[3],
-                "Peso Favas Curadas (kg)": res[4],
-                "Valor Favas Verdes (US$)": res[5],
-                "Valor Favas Curadas (US$)": res[6],
-                "Valor Extrato (US$)": res[7],
-                "Volume Extrato (kg)": res[8],
+                "Produção Total (kg)": res["producao_kg"],
+                "Número de Favas": res["numero_favas"],
+                "Peso Favas Verdes (kg)": res["peso_favas_verdes"],
+                "Peso Favas Curadas (kg)": res["peso_favas_curadas"],
+                "Valor Favas Verdes (US$)": res["valor_favas_verdes"],
+                "Valor Favas Curadas (US$)": res["valor_favas_curadas"],
+                "Valor Extrato (US$)": res["valor_extrato"],
+                "Volume Extrato (kg)": res["volume_extrato"],
                 "Faturamento Bruto (US$)": faturamento_bruto,
                 "Faturamento Líquido (US$)": lucro_liquido,
             }
         )
+
         for key in resultados_cumulativos:
             if key != "Custo Inicial Mudas (US$)":
                 resultados_cumulativos[key] += resultados_anuais[-1][key]
@@ -149,10 +150,11 @@ def calcular_plano_acao(
             fat_anual = 0
             for ano_impl in range(1, ano + 1):
                 mudas_impl = mudas_inicial * (taxa_crescimento ** (ano_impl - 1))
-                _, _, _, _, _, _, _, valor_extrato = calcular_produtividade_baunilha(
+                resultado = calcular_produtividade_baunilha(
                     mudas_impl, ano - ano_impl + 1
                 )
-                fat_anual += valor_extrato * 0.213
+                valor_extrato = resultado["valor_extrato"]
+                fat_anual += valor_extrato * 0.22
             fat_total += fat_anual
             mudas *= taxa_crescimento
         return fat_total
@@ -219,9 +221,8 @@ def calcular_plano_acao(
         faturamento_liquido_anual = 0
         for ano_impl in range(1, ano + 1):
             mudas_impl = num_mudas_inicial * (taxa_crescimento ** (ano_impl - 1))
-            _, _, _, _, _, _, _, valor_extrato = calcular_produtividade_baunilha(
-                mudas_impl, ano - ano_impl + 1
-            )
+            resultado = calcular_produtividade_baunilha(mudas_impl, ano - ano_impl + 1)
+            valor_extrato = resultado["valor_extrato"]
             faturamento_liquido_anual += valor_extrato * 0.213
             resultados_detalhados.append(
                 {
@@ -380,121 +381,132 @@ if st.button("Gerar Tabela Excel"):
     )
 
 if st.button("Gerar Plano de Ação"):
-    plano_acao, resultados_detalhados, taxa_crescimento, info = calcular_plano_acao(
-        num_mudas, faturamento_objetivo, anos_projecao
-    )
-
-    if info["possivel"]:
-        st.success(
-            f"Plano de ação gerado para atingir o faturamento objetivo em {anos_projecao} anos."
-        )
-        st.info(
-            f"Taxa de crescimento anual necessária: {(taxa_crescimento - 1) * 100:,.2f}%"
+    try:
+        plano_acao, resultados_detalhados, taxa_crescimento, info = calcular_plano_acao(
+            num_mudas, faturamento_objetivo, anos_projecao
         )
 
-        st.write(plano_acao)
-        st.write(resultados_detalhados)
-
-        # Gráfico de crescimento do número de mudas
-        chart_mudas = (
-            alt.Chart(plano_acao)
-            .mark_line()
-            .encode(x="Ano", y="Número de Mudas", tooltip=["Ano", "Número de Mudas"])
-            .properties(title="Crescimento do Número de Mudas", width=600, height=400)
-        )
-        st.altair_chart(chart_mudas, use_container_width=True)
-
-        # Gráfico de faturamento acumulado
-        chart_faturamento = (
-            alt.Chart(plano_acao)
-            .mark_line()
-            .encode(
-                x="Ano",
-                y="Faturamento Acumulado (US$)",
-                tooltip=["Ano", "Faturamento Acumulado (US$)"],
+        if info["possivel"]:
+            st.success(
+                f"Plano de ação gerado para atingir o faturamento objetivo em {anos_projecao} anos."
             )
-            .properties(title="Faturamento Acumulado", width=600, height=400)
-        )
-        st.altair_chart(chart_faturamento, use_container_width=True)
-
-        # Botões de download
-        if st.button("Gerar Tabela Excel 2"):
-            excel_data = gerar_excel(
-                resultados_detalhados, plano_acao.to_dict("records")
+            st.info(
+                f"Taxa de crescimento anual necessária: {(taxa_crescimento - 1) * 100:,.2f}%"
             )
+
+            st.write(plano_acao)
+            st.write(resultados_detalhados)
+
+            # Gráfico de crescimento do número de mudas
+            chart_mudas = (
+                alt.Chart(plano_acao)
+                .mark_line()
+                .encode(
+                    x="Ano", y="Número de Mudas", tooltip=["Ano", "Número de Mudas"]
+                )
+                .properties(
+                    title="Crescimento do Número de Mudas", width=600, height=400
+                )
+            )
+            st.altair_chart(chart_mudas, use_container_width=True)
+
+            # Gráfico de faturamento acumulado
+            chart_faturamento = (
+                alt.Chart(plano_acao)
+                .mark_line()
+                .encode(
+                    x="Ano",
+                    y="Faturamento Acumulado (US$)",
+                    tooltip=["Ano", "Faturamento Acumulado (US$)"],
+                )
+                .properties(title="Faturamento Acumulado", width=600, height=400)
+            )
+            st.altair_chart(chart_faturamento, use_container_width=True)
+
+            # Botões de download
+            if st.button("Gerar Tabela Excel 2"):
+                excel_data = gerar_excel(
+                    resultados_detalhados, plano_acao.to_dict("records")
+                )
+                st.download_button(
+                    label="Baixar Tabela Excel",
+                    data=excel_data.getvalue(),
+                    file_name="plano_acao_baunilha.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+
+            # Botão para baixar o plano de ação como CSV
             st.download_button(
-                label="Baixar Tabela Excel",
-                data=excel_data.getvalue(),
-                file_name="plano_acao_baunilha.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                label="Baixar Plano de Ação (CSV)",
+                data=plano_acao.to_csv(index=False).encode("utf-8"),
+                file_name="plano_acao.csv",
+                mime="text/csv",
             )
 
-        # Botão para baixar o plano de ação como CSV
-        st.download_button(
-            label="Baixar Plano de Ação (CSV)",
-            data=plano_acao.to_csv(index=False).encode("utf-8"),
-            file_name="plano_acao.csv",
-            mime="text/csv",
-        )
-
-        # Botão para baixar os resultados detalhados como CSV
-        st.download_button(
-            label="Baixar Resultados Detalhados (CSV)",
-            data=resultados_detalhados.to_csv(index=False).encode("utf-8"),
-            file_name="resultados_detalhados.csv",
-            mime="text/csv",
-        )
-
-        st.header("Gráfico de Detalhamento do Plano de Ação")
-        chart_detalhado = (
-            alt.Chart(resultados_detalhados)
-            .mark_line()
-            .encode(
-                x="Ano",
-                y="Faturamento Líquido (US$)",
-                color="Ano de Implementação:N",
-                tooltip=["Ano de Implementação", "Ano", "Faturamento Líquido (US$)"],
+            # Botão para baixar os resultados detalhados como CSV
+            st.download_button(
+                label="Baixar Resultados Detalhados (CSV)",
+                data=resultados_detalhados.to_csv(index=False).encode("utf-8"),
+                file_name="resultados_detalhados.csv",
+                mime="text/csv",
             )
-            .properties(
-                title="Faturamento Líquido por Ano de Implementação",
-                width=600,
-                height=400,
-            )
-        )
-        st.altair_chart(chart_detalhado, use_container_width=True)
 
-    else:
-        st.warning(
-            "Não é possível atingir o faturamento objetivo com os parâmetros fornecidos."
-        )
-        st.info(f"Faturamento máximo possível: $ {info['faturamento_maximo']:,.2f}")
-
-        if info["anos_necessarios"]:
-            st.info(
-                f"Anos necessários para atingir o objetivo com o número atual de mudas: {info['anos_necessarios']}"
+            st.header("Gráfico de Detalhamento do Plano de Ação")
+            chart_detalhado = (
+                alt.Chart(resultados_detalhados)
+                .mark_line()
+                .encode(
+                    x="Ano",
+                    y="Faturamento Líquido (US$)",
+                    color="Ano de Implementação:N",
+                    tooltip=["Ano de Implementação", "Ano", "Faturamento Líquido (US$)"],
+                )
+                .properties(
+                    title="Faturamento Líquido por Ano de Implementação",
+                    width=600,
+                    height=400,
+                )
             )
+            st.altair_chart(chart_detalhado, use_container_width=True)
+
         else:
+            st.warning(
+                "Não é possível atingir o faturamento objetivo com os parâmetros fornecidos."
+            )
+            st.info(f"Faturamento máximo possível: $ {info['faturamento_maximo']:,.2f}")
+
+            if info.get("anos_necessarios"):
+                st.info(
+                    f"Anos necessários para atingir o objetivo com o número atual de mudas: {info['anos_necessarios']}"
+                )
+            else:
+                st.info(
+                    "Não é possível atingir o objetivo mesmo em 15 anos com o número atual de mudas."
+                )
+
             st.info(
-                "Não é possível atingir o objetivo mesmo em 15 anos com o número atual de mudas."
+                f"Número mínimo de mudas iniciais necessárias: {info['mudas_minimas']:,.0f}"
             )
 
-        st.info(
-            f"Número mínimo de mudas iniciais necessárias: {info['mudas_minimas']:,.0f}"
-        )
+            st.write("Sugestões de ajuste:")
+            st.write(
+                f"1. Aumente o número inicial de mudas para pelo menos {info['mudas_minimas']:,.0f}."
+            )
+            if info["anos_necessarios"] and info["anos_necessarios"] <= 15:
+                st.write(
+                    f"2. Aumente o número de anos de projeção para {info['anos_necessarios']}."
+                )
+            else:
+                st.write(
+                    "2. Não é possível atingir o objetivo apenas aumentando o número de anos."
+                )
+            st.write("3. Considere reduzir o faturamento objetivo.")
 
-        st.write("Sugestões de ajuste:")
-        st.write(
-            f"1. Aumente o número inicial de mudas para pelo menos {info['mudas_minimas']:,.0f}."
-        )
-        if info["anos_necessarios"] and info["anos_necessarios"] <= 15:
-            st.write(
-                f"2. Aumente o número de anos de projeção para {info['anos_necessarios']}."
-            )
-        else:
-            st.write(
-                "2. Não é possível atingir o objetivo apenas aumentando o número de anos."
-            )
-        st.write("3. Considere reduzir o faturamento objetivo.")
+    except Exception as e:
+        st.error(f"Ocorreu um erro ao gerar o plano de ação: {str(e)}")
+        print(f"Erro detalhado: {e}")
+        plano_acao = None
+        resultados_detalhados = None
 
     # Adicione verificações antes de tentar acessar os atributos
     if plano_acao is not None and resultados_detalhados is not None:
