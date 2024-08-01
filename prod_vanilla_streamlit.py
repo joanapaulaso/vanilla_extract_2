@@ -5,6 +5,8 @@ import numpy as np
 from io import BytesIO
 
 CUSTO_POR_MUDA = 0.85  # US$
+PRECO_EXTRATO_POR_TONELADA = 135435.20  # US$
+
 
 def calcular_produtividade_baunilha(num_mudas, ano, usar_modelo_linear=False):
     producao_por_hectare = {
@@ -41,10 +43,13 @@ def calcular_produtividade_baunilha(num_mudas, ano, usar_modelo_linear=False):
     unidade_fava_verde = (20 * 15) / 1000  # US$/kg
     unidade_fava_curada = (4 * 139.75) / 1000  # US$/kg
 
-    # Cálculo do valor de mercado
+    # Cálculo do valor de mercado das favas
     valor_favas_verdes = unidade_fava_verde * numero_favas  # US$
     valor_favas_curadas = unidade_fava_curada * numero_favas  # US$
-    valor_extrato = valor_favas_curadas * 2.25  # US$
+
+    # Cálculo do volume e valor do extrato
+    volume_extrato = peso_favas_curadas / 0.25  # kg de extrato (25% de favas)
+    valor_extrato = (volume_extrato / 1000) * PRECO_EXTRATO_POR_TONELADA  # US$
 
     return (
         producao_kg,
@@ -55,6 +60,7 @@ def calcular_produtividade_baunilha(num_mudas, ano, usar_modelo_linear=False):
         valor_favas_verdes,
         valor_favas_curadas,
         valor_extrato,
+        volume_extrato,
     )
 
 
@@ -66,7 +72,8 @@ def calcular_cumulativo(num_mudas, anos, usar_modelo_linear=False):
         "Peso Favas Curadas (kg)": 0,
         "Valor Favas Verdes (US$)": 0,
         "Valor Favas Curadas (US$)": 0,
-        "Valor Extrato 1-fold (US$)": 0,
+        "Valor Extrato (US$)": 0,
+        "Volume Extrato (kg)": 0,
         "Faturamento Bruto (US$)": 0,
         "Custo Inicial Mudas (US$)": num_mudas * CUSTO_POR_MUDA,
     }
@@ -74,7 +81,7 @@ def calcular_cumulativo(num_mudas, anos, usar_modelo_linear=False):
 
     for ano in range(1, anos + 1):
         res = calcular_produtividade_baunilha(num_mudas, ano, usar_modelo_linear)
-        faturamento_bruto = res[7]
+        faturamento_bruto = res[7]  # Valor do extrato
         lucro_bruto = faturamento_bruto * 0.2130  # 21.30% do faturamento bruto
         custo_inicial_mudas = num_mudas * CUSTO_POR_MUDA if ano == 1 else 0
         lucro_liquido = lucro_bruto - custo_inicial_mudas
@@ -88,7 +95,8 @@ def calcular_cumulativo(num_mudas, anos, usar_modelo_linear=False):
                 "Peso Favas Curadas (kg)": res[4],
                 "Valor Favas Verdes (US$)": res[5],
                 "Valor Favas Curadas (US$)": res[6],
-                "Valor Extrato 1-fold (US$)": res[7],
+                "Valor Extrato (US$)": res[7],
+                "Volume Extrato (kg)": res[8],
                 "Faturamento Bruto (US$)": faturamento_bruto,
                 "Faturamento Líquido (US$)": lucro_liquido,
             }
@@ -144,7 +152,7 @@ def calcular_plano_acao(
                 _, _, _, _, _, _, _, valor_extrato = calcular_produtividade_baunilha(
                     mudas_impl, ano - ano_impl + 1
                 )
-                fat_anual += valor_extrato * 0.22
+                fat_anual += valor_extrato * 0.213
             fat_total += fat_anual
             mudas *= taxa_crescimento
         return fat_total
@@ -214,13 +222,13 @@ def calcular_plano_acao(
             _, _, _, _, _, _, _, valor_extrato = calcular_produtividade_baunilha(
                 mudas_impl, ano - ano_impl + 1
             )
-            faturamento_liquido_anual += valor_extrato * 0.22
+            faturamento_liquido_anual += valor_extrato * 0.213
             resultados_detalhados.append(
                 {
                     "Ano de Implementação": ano_impl,
                     "Ano": ano,
                     "Número de Mudas": mudas_impl,
-                    "Faturamento Líquido (US$)": valor_extrato * 0.22,
+                    "Faturamento Líquido (US$)": valor_extrato * 0.213,
                 }
             )
 
@@ -268,7 +276,8 @@ with col2:
     st.write("- Fava verde (unidade): US$ 0.30")
     st.write("- Fava curada: US$ 139.75/kg")
     st.write("- Fava curada (unidade): US$ 0.56")
-    st.write("- Extrato 1-fold: 2,25x o preço da fava curada")
+    st.write("- Extrato de baunilha: US$ 135,435.20 por tonelada")
+    # st.write("- Extrato 1-fold: 2,25x o preço da fava curada")
     st.write("- Margem de lucro: 21,30% do faturamento bruto")
 
 resultados_cumulativos, resultados_anuais = calcular_cumulativo(
@@ -301,12 +310,12 @@ col2.metric(
 st.subheader("Projeção Cumulativa de Valor de Mercado e Lucro (US$)")
 col1, col2, col3 = st.columns(3)
 col1.metric(
-    "Valor Total Extrato 1-fold",
-    f"$ {resultados_cumulativos['Valor Extrato 1-fold (US$)']:,.2f}",
+    "Valor Total Extrato",
+    f"$ {resultados_cumulativos['Valor Extrato (US$)']:,.2f}",
 )
 col2.metric(
-    "Custo Inicial Mudas",
-    f"$ {resultados_cumulativos['Custo Inicial Mudas (US$)']:,.2f}",
+    "Volume Total Extrato",
+    f"{resultados_cumulativos['Volume Extrato (kg)']:,.2f} kg",
 )
 col3.metric(
     "Faturamento Líquido",
@@ -549,6 +558,7 @@ st.write(
 - Preços de referência (sujeitos a variações de mercado):
   - Fava verde: US$ 15/kg
   - Fava curada: US$ 139.75/kg
-  - Extrato 1-fold: 2.25x o preço da fava curada
+  - Extrato de baunilha: US$ 135,435.20 por tonelada
+- O extrato de baunilha é feito com 25% de favas curadas.
 """
 )
